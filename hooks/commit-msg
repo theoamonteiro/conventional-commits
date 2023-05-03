@@ -1,0 +1,68 @@
+#!/usr/bin/env python
+
+import sys
+from pathlib import Path
+import subprocess
+import shutil
+import json
+import re
+
+
+CONVENTIONAL_COMMITS_JSON = '.conventional-commits.json'
+FIRST_LINE_PATTERN = r'''^(?P<type>[a-z]+)(?P<scope>\([a-zA-Z0-9 ]+\))?(?P<breaking>!)?: (?P<description>.+)\n'''
+
+
+class ConventionalCommitsConfigs:
+
+    def __init__(self, **kargs):
+        self.enabled = bool(kargs['enabled'])
+        self.revert = bool(kargs['revert'])
+        self.description = {'min': int(kargs['length']['min']), 
+                            'max': int(kargs['length']['max'])}
+        self._types = list(kargs['types'])
+
+    @property
+    def types(self):
+        return self._types + ['revert'] if self.revert else self._types
+
+
+def conventional_commits(commit_msg_path):
+    ignore = Path('.no-conventional-commits')
+    if ignore.exists() and ignore.is_file():
+        return 0
+    config_file = Path('.conventional-commits.json')
+    if not config_file.exists():
+        outs, errs = subprocess.Popen(['git', 'config', 'init.templatedir'], stdout=subprocess.PIPE).communicate()
+        template_path = outs.decode('UTF-8').strip()
+        print(f'''No "Conventional Commits" configuration for this repo (¬¬*), coping '{CONVENTIONAL_COMMITS_JSON}' from {template_path}''', file=sys.stderr)
+        json_path = Path(template_path) / CONVENTIONAL_COMMITS_JSON
+        shutil.copy(json_path, Path('.'))
+    if not config_file.exists():
+        return 2**5 
+    with open(config_file) as f:
+        configs = ConventionalCommitsConfigs(**(json.load(f)))
+    with open(commit_msg_path) as f:
+        first_line = f.readline()
+        matches = re.compile(FIRST_LINE_PATTERN).match(first_line)
+    if not matches:
+        print(f'''The first line must followw the formmat: <type>[optional scope][!]: <description>''', file=sys.stderr)
+        print(f'''See more about it in https://www.conventionalcommits.org''', file=sys.stderr)
+        return 2**4
+    if not configs.enabled:
+        return 0
+    if not configs.description['min'] <= len(first_line) <= configs.description['max']:
+        print(f'''First line should have at least {configs.description['min']} up to most {configs.description['max']} characters''', file=sys.stderr)
+        return 2**3
+    if matches.group('type') not in configs.types:
+        print(f'''"{matches.group('type')}" is not a valid type. Valide types on the .conventional-commits.json file: {configs.types}.''')
+        return 2**2
+    return 0
+
+def main(args):
+    result = 0
+    result += conventional_commits(args[0])
+    return result
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1:]))

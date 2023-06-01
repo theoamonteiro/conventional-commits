@@ -45,8 +45,8 @@ def conventional_commits(commit_msg_path):
         first_line = f.readline()
         matches = re.compile(FIRST_LINE_PATTERN).match(first_line)
     if not matches:
-        print(f'''The first line must followw the formmat: <type>[optional scope][!]: <description>''', file=sys.stderr)
-        print(f'''See more about it in https://www.conventionalcommits.org''', file=sys.stderr)
+        print(f'''The first line must follow the format: <type>[optional scope][!]: <description>''', file=sys.stderr)
+        print(f'''Learn more about it at https://www.conventionalcommits.org''', file=sys.stderr)
         return 2**4
     if not configs.enabled:
         return 0
